@@ -11,12 +11,19 @@ function sendPopupMessage(message) {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "startScrapeAndUpload") {
     console.log("Background: Received startScrapeAndUpload from popup.");
-    sendPopupMessage({ action: "updateStatus", message: "Authenticating..." });
+    sendPopupMessage({ action: "updateStatus", message: "Verifying authentication..." }); // Changed message
 
-    chrome.identity.getAuthToken({ interactive: true }, (token) => {
+    // Attempt to get token silently. Popup should have handled interactive auth.
+    chrome.identity.getAuthToken({ interactive: false }, (token) => {
       if (chrome.runtime.lastError || !token) {
-        const errorMessage = chrome.runtime.lastError ? chrome.runtime.lastError.message : "No token received.";
-        console.error("Background: Authentication failed:", errorMessage);
+        let errorMessage = chrome.runtime.lastError ? chrome.runtime.lastError.message : "No token received or user not signed in/authorized.";
+        // Provide a more user-friendly message if it's a common "needs interaction" error
+        if (errorMessage.toLowerCase().includes("user gesture") || 
+            errorMessage.toLowerCase().includes("interactive flow") ||
+            errorMessage.toLowerCase().includes("requires an input user gesture")) {
+          errorMessage = "Authorization required. Please click 'Sign In / Authorize' in the extension popup.";
+        }
+        console.error("Background: Silent authentication failed:", errorMessage);
         sendPopupMessage({ action: "error", message: `Authentication failed: ${errorMessage}` });
         return;
       }
